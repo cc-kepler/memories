@@ -24,9 +24,16 @@ export default function MapPage() {
   const [loading, setLoading] = useState(true)
 
   const loadActiveCities = useCallback(async () => {
-    const { data } = await supabase.from('photos').select('city').neq('city', '')
     const active = new Set<string>()
-    data?.forEach(p => { if (p.city) active.add(p.city) })
+    let from = 0
+    const chunk = 1000
+    while (true) {
+      const { data } = await supabase.from('photos').select('city').neq('city', '').range(from, from + chunk - 1)
+      if (!data || data.length === 0) break
+      data.forEach(p => { if (p.city) active.add(p.city) })
+      if (data.length < chunk) break
+      from += chunk
+    }
     setActiveCities(active)
     setLoading(false)
   }, [])
@@ -75,9 +82,10 @@ export default function MapPage() {
   )
 
   return (
-    <div className={`min-h-screen ${bg} flex flex-col transition-colors`}>
+    <div className={`h-screen ${bg} flex flex-col transition-colors`}>
+
       {/* Top Bar */}
-      <div className={`flex items-center px-4 md:px-8 py-3 border-b ${border}`}>
+      <div className={`flex items-center px-4 md:px-8 py-1.5 border-b ${border}`}>
         <button
           onClick={() => navigate('/home')}
           className={`${text} hover:opacity-70 text-sm tracking-wider transition-colors cursor-pointer`}
@@ -87,8 +95,8 @@ export default function MapPage() {
       </div>
 
       {/* Content */}
-      <div className="flex-1 flex flex-row">
-        <div className={`${selectedProvince ? 'w-2/3' : 'flex-1'} p-4 flex items-center justify-center ${selectedCity ? 'border-r ' + border : ''}`}>
+      <div className="flex-1 flex flex-row min-h-0 overflow-hidden">
+        <div className={`${selectedProvince ? 'w-2/3' : 'flex-1'} p-4 min-h-0 overflow-hidden border-r ${selectedCity ? border : 'border-transparent'}`}>
           <ChinaMap
             activeCities={activeCities}
             selectedCity={selectedCity}
@@ -103,7 +111,7 @@ export default function MapPage() {
         {/* Photo panel — only in province view */}
         {selectedProvince && (
           <div className={`w-1/3 p-4 border-l ${border}
-            overflow-y-auto max-h-[50vh] md:max-h-full ${bg}
+            overflow-y-auto min-h-0 ${bg}
             [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:rounded-full
             [&::-webkit-scrollbar-thumb]:bg-black/10 [&::-webkit-scrollbar-track]:bg-transparent`}
           >

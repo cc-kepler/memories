@@ -13,6 +13,7 @@ import {
   uploadPhoto, deletePhoto,
   type Log, type Photo,
 } from '../lib/data'
+import { isPlaying, toggle, subscribe } from '../lib/music'
 
 type Theme = 'dark' | 'light'
 const LAST_DATE_KEY = 'memories_last_date'
@@ -27,6 +28,7 @@ function loadTheme(): Theme {
 export default function TimelinePage() {
   const navigate = useNavigate()
   const [theme, setTheme] = useState<Theme>(loadTheme)
+  const [playing, setPlaying] = useState(isPlaying)
 
   const [dates, setDates] = useState<string[]>([])
   const [selectedDate, setSelectedDate] = useState('')
@@ -54,6 +56,7 @@ export default function TimelinePage() {
   }, [selectedDate])
 
   useEffect(() => { loadDates() }, [])
+  useEffect(() => subscribe(setPlaying), [])
 
   const loadContent = useCallback(async () => {
     if (!selectedDate) return
@@ -164,6 +167,16 @@ export default function TimelinePage() {
           下一篇 →
         </button>
 
+        <button
+          onClick={toggle}
+          className={`shrink-0 text-xs min-w-[32px] min-h-[32px] rounded-full border cursor-pointer transition-colors flex items-center justify-center leading-none ${
+            playing
+              ? 'border-[#c9a0b8]/60 text-[#c9a0b8]'
+              : `${btnBorder} ${btnText} ${btnHover}`}`}
+          title={playing ? '暂停' : '播放'}
+        >
+          {playing ? '⏸' : '♪'}
+        </button>
         <button
           onClick={() => setTheme(t => { const n = t === 'dark' ? 'light' : 'dark'; localStorage.setItem(THEME_KEY, n); return n })}
           className={`shrink-0 text-xs px-3 py-2 rounded-full border ${btnBorder}

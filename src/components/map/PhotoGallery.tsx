@@ -1,4 +1,4 @@
-import { useRef, useState, useMemo } from 'react'
+import { useRef, useState, useMemo, useCallback, useEffect } from 'react'
 import type { Photo } from '../../lib/data'
 
 interface PhotoGalleryProps {
@@ -12,7 +12,7 @@ interface PhotoGalleryProps {
 
 export default function PhotoGallery({ city, photos, theme = 'dark', onUpload, onDelete, onClose }: PhotoGalleryProps) {
   const inputRef = useRef<HTMLInputElement>(null)
-  const [viewing, setViewing] = useState<Photo | null>(null)
+  const [viewingIdx, setViewingIdx] = useState(-1)
   const [catInput, setCatInput] = useState('')
   const light = theme === 'light'
 
@@ -26,6 +26,27 @@ export default function PhotoGallery({ city, photos, theme = 'dark', onUpload, o
     })
     return Array.from(map.entries())
   }, [photos])
+
+  // Flat list for prev/next navigation
+  const flatPhotos = useMemo(() => {
+    const flat: Photo[] = []
+    grouped.forEach(([, catPhotos]) => { catPhotos.forEach(p => flat.push(p)) })
+    return flat
+  }, [grouped])
+
+  const viewing = viewingIdx >= 0 ? flatPhotos[viewingIdx] : null
+
+  // Keyboard navigation
+  useEffect(() => {
+    if (viewingIdx < 0) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft' && viewingIdx > 0) setViewingIdx(viewingIdx - 1)
+      if (e.key === 'ArrowRight' && viewingIdx < flatPhotos.length - 1) setViewingIdx(viewingIdx + 1)
+      if (e.key === 'Escape') setViewingIdx(-1)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [viewingIdx, flatPhotos.length])
 
   // Existing categories for datalist
   const categories = useMemo(() => {
@@ -50,10 +71,10 @@ export default function PhotoGallery({ city, photos, theme = 'dark', onUpload, o
     : 'border-white/10 text-white/30 hover:text-white/60'
   const emptyTitle = light ? 'text-stone-400' : 'text-white/40'
   const emptySub = light ? 'text-stone-300' : 'text-white/25'
-  const catHeader = light ? 'text-stone-500' : 'text-white/35'
   const inputStyle = light
     ? 'border-stone-300 text-stone-600 bg-white placeholder:text-stone-300'
     : 'border-white/10 text-white/60 bg-white/5 placeholder:text-white/20'
+  const navBtn = 'absolute top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-white/70 hover:text-white hover:bg-white/20 cursor-pointer transition-colors'
 
   return (
     <div className="w-full">
@@ -110,54 +131,85 @@ export default function PhotoGallery({ city, photos, theme = 'dark', onUpload, o
         <div className="flex flex-col gap-4">
           {grouped.map(([cat, catPhotos]) => (
             <div key={cat}>
-              <div className={`flex items-center gap-2 mb-2 text-xs ${catHeader}`}>
+              <div className={`flex items-center gap-2 mb-2 text-sm font-medium ${light ? 'text-stone-600' : 'text-white/60'}`}>
                 <span>📁 {cat}</span>
-                <span className="opacity-50">· {catPhotos.length} 张</span>
+                <span className={light ? 'text-stone-400 text-xs' : 'text-white/30 text-xs'}>· {catPhotos.length} 张</span>
               </div>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                {catPhotos.map(photo => (
-                  <div
-                    key={photo.id}
-                    className="group relative aspect-square rounded-lg overflow-hidden bg-white/5 cursor-pointer"
-                    onClick={() => setViewing(photo)}
-                  >
-                    <img src={photo.image_url} alt={photo.category || city}
-                         className="w-full h-full object-cover" loading="lazy" />
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        if (confirm('确定删除这张照片吗？')) onDelete(photo)
-                      }}
-                      className="absolute top-1 right-1 w-6 h-6 rounded-full bg-black/50
-                                 flex items-center justify-center opacity-0 group-hover:opacity-100
-                                 transition-opacity cursor-pointer"
-                      title="删除"
+                {catPhotos.map(photo => {
+                  const idx = flatPhotos.indexOf(photo)
+                  return (
+                    <div
+                      key={photo.id}
+                      className="group relative aspect-square rounded-lg overflow-hidden bg-white/5 cursor-pointer"
+                      onClick={() => setViewingIdx(idx)}
                     >
-                      <span className="text-white text-xs">✕</span>
-                    </button>
-                  </div>
-                ))}
+                      <img src={photo.image_url} alt={photo.category || city}
+                           className="w-full h-full object-cover" loading="lazy" />
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          if (confirm('确定删除这张照片吗？')) onDelete(photo)
+                        }}
+                        className="absolute top-1 right-1 w-6 h-6 rounded-full bg-black/50
+                                   flex items-center justify-center opacity-0 group-hover:opacity-100
+                                   transition-opacity cursor-pointer"
+                        title="删除"
+                      >
+                        <span className="text-white text-xs">✕</span>
+                      </button>
+                    </div>
+                  )
+                })}
               </div>
             </div>
           ))}
         </div>
       )}
 
-      {/* Photo Viewer */}
+      {/* Photo Viewer with prev/next */}
       {viewing && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/85"
-          onClick={e => { if (e.target === e.currentTarget) setViewing(null) }}
+          onClick={e => { if (e.target === e.currentTarget) setViewingIdx(-1) }}
         >
-          <img src={viewing.image_url} alt="preview"
-               className="max-w-full max-h-[85vh] object-contain rounded-lg" />
+          {/* Close button */}
           <button
-            onClick={() => setViewing(null)}
+            onClick={() => setViewingIdx(-1)}
             className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 border border-white/20
-                       flex items-center justify-center text-white/60 hover:text-white cursor-pointer"
+                       flex items-center justify-center text-white/60 hover:text-white cursor-pointer z-10"
           >
             ✕
           </button>
+
+          {/* Counter */}
+          <div className="absolute top-4 left-4 text-white/50 text-sm">
+            {viewingIdx + 1} / {flatPhotos.length}
+          </div>
+
+          {/* Prev button */}
+          {viewingIdx > 0 && (
+            <button
+              onClick={(e) => { e.stopPropagation(); setViewingIdx(viewingIdx - 1) }}
+              className={`${navBtn} left-6`}
+            >
+              ‹
+            </button>
+          )}
+
+          {/* Image */}
+          <img src={viewing.image_url} alt="preview"
+               className="max-w-full max-h-[85vh] object-contain rounded-lg" />
+
+          {/* Next button */}
+          {viewingIdx < flatPhotos.length - 1 && (
+            <button
+              onClick={(e) => { e.stopPropagation(); setViewingIdx(viewingIdx + 1) }}
+              className={`${navBtn} right-6`}
+            >
+              ›
+            </button>
+          )}
         </div>
       )}
     </div>

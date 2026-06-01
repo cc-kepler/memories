@@ -31,7 +31,7 @@ export default function OpeningPage() {
   const handleEnter = () => {
     if (loading) return
     if (user) {
-      navigate('/home')
+      navigate('/home', { state: { fromOpening: true } })
     } else {
       navigate('/login')
     }

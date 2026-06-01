@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { useState, useRef, useEffect, useCallback } from 'react'
+import { isPlaying, toggle, subscribe } from '../../lib/music'
 
 interface LabelPos { lng: number; lat: number }
 
@@ -22,27 +23,31 @@ export default function ChinaMap({ activeCities, selectedCity, selectedProvince,
   const [editTarget, setEditTarget] = useState<string | null>(null)
   const [dim, setDim] = useState({ w: 800, h: 600 })
   const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1 })
+  const [playing, setPlaying] = useState(isPlaying)
 
   useEffect(() => {
     fetch('/map_data.json').then(r => r.json()).then(setMapData).catch(() => {})
     fetch('/province_labels.json').then(r => r.json()).then(setLabels).catch(() => {})
   }, [])
 
+  useEffect(() => subscribe(setPlaying), [])
+
   useEffect(() => {
     const upd = () => {
       if (containerRef.current) {
         const r = containerRef.current.getBoundingClientRect()
-        const availH = window.innerHeight - r.top - 80
-        setDim({ w: r.width || 800, h: Math.min(r.width * 0.78, availH) })
+        const availH = window.innerHeight - r.top - 20
+        const ratio = selectedProvince ? 0.68 : 0.42
+        setDim({ w: r.width || 800, h: Math.min(r.width * ratio, availH) })
       }
     }
     upd()
     window.addEventListener('resize', upd)
     return () => window.removeEventListener('resize', upd)
-  }, [])
+  }, [selectedProvince])
 
   const proj = useCallback((lng: number, lat: number) => {
-    const b = { minLng: 73, maxLng: 135, minLat: 6, maxLat: 54 }
+    const b = { minLng: 73, maxLng: 135, minLat: 16, maxLat: 54 }
     const pad = 30
     const sc = Math.min((dim.w - pad * 2) / (b.maxLng - b.minLng), (dim.h - pad * 2) / (b.maxLat - b.minLat))
     return {
@@ -52,7 +57,7 @@ export default function ChinaMap({ activeCities, selectedCity, selectedProvince,
   }, [dim])
 
   const unproj = useCallback((px: number, py: number) => {
-    const b = { minLng: 73, maxLng: 135, minLat: 6, maxLat: 54 }
+    const b = { minLng: 73, maxLng: 135, minLat: 16, maxLat: 54 }
     const pad = 30
     const sc = Math.min((dim.w - pad * 2) / (b.maxLng - b.minLng), (dim.h - pad * 2) / (b.maxLat - b.minLat))
     return {
@@ -86,12 +91,16 @@ export default function ChinaMap({ activeCities, selectedCity, selectedProvince,
       } else { arr.forEach(x => walk(x, d + 1)) }
     }
     walk(f.geometry.coordinates, 0)
+    // Clip Hainan's southern bounds to exclude South China Sea inset
+    if (selectedProvince === '海南省' && minY < 18) minY = 18
     const { x: tlx, y: tly } = proj(minX, maxY)
     const { x: brx, y: bry } = proj(maxX, minY)
     const provW = brx - tlx || 100
     const provH = bry - tly || 100
     const pad = 100
-    const s = Math.min((dim.w - pad * 2) / provW, (dim.h - pad * 2) / provH)
+    let s = Math.min((dim.w - pad * 2) / provW, (dim.h - pad * 2) / provH)
+    // Cap zoom for small provinces
+    s = Math.min(s, 5)
     const { x: cx, y: cy } = proj((minX + maxX) / 2, (maxY + minY) / 2)
     setTransform({ x: dim.w / 2 - cx * s, y: dim.h / 2 - cy * s, scale: s })
   }, [mapData, selectedProvince, dim, proj])
@@ -148,8 +157,13 @@ export default function ChinaMap({ activeCities, selectedCity, selectedProvince,
           drawFeature(f.geometry.coordinates,
             'rgba(190,165,130,0.20)',
             'rgba(190,165,130,0.45)', 0.4)
+        } else if (selectedProvince && isActiveProv) {
+          // Province view: neighboring province with active cities visible
+          drawFeature(f.geometry.coordinates,
+            'rgba(232,145,126,0.18)',
+            'rgba(232,145,126,0.35)', 0.3)
         } else if (selectedProvince) {
-          // Province view: neighboring provinces subtle
+          // Province view: inactive neighboring provinces subtle
           drawFeature(f.geometry.coordinates,
             'rgba(150,145,140,0.04)',
             'rgba(150,145,140,0.10)', 0.2)
@@ -326,46 +340,69 @@ export default function ChinaMap({ activeCities, selectedCity, selectedProvince,
   return (
     <div ref={containerRef} className="w-full select-none">
       {/* Controls */}
-      <div className="relative flex items-center gap-3 mb-2 px-2">
-        {selectedProvince && (
-          <button onClick={() => onProvinceSelect(null)}
-            className="text-xs px-4 py-1.5 rounded-full border border-[var(--color-coral-active)]/50
-                       text-[var(--color-coral-active)] hover:bg-[var(--color-coral-active)]/10
-                       cursor-pointer transition-colors font-medium shrink-0">
-            ← 返回全国
+      <div className="flex items-center gap-3 mb-2 px-2">
+        {/* Left buttons */}
+        <div className="flex items-center gap-2 shrink-0">
+          {selectedProvince && (
+            <button onClick={() => onProvinceSelect(null)}
+              className="text-xs px-4 py-1.5 rounded-full border border-[var(--color-coral-active)]/50
+                         text-[var(--color-coral-active)] hover:bg-[var(--color-coral-active)]/10
+                         cursor-pointer transition-colors font-medium">
+              ← 返回全国
+            </button>
+          )}
+          {selectedCity && (
+            <button onClick={() => onSelect('')}
+              className="text-xs px-3 py-1.5 rounded-full border border-[var(--color-coral-active)]/50
+                         text-[var(--color-coral-active)] hover:bg-[var(--color-coral-active)]/10
+                         cursor-pointer transition-colors font-medium">
+              ✕ 取消选择
+            </button>
+          )}
+        </div>
+        {/* Province name */}
+        <div className="flex-1 flex justify-center">
+          {selectedProvince && (
+            <span className="text-lg font-medium tracking-wider truncate"
+              style={{ color: isLight ? '#e11d48' : '#fff' }}>
+              {selectedProvince?.replace('省','').replace('市','').replace('自治区','')}
+            </span>
+          )}
+        </div>
+        {/* Right buttons */}
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={toggle}
+            className={`text-xs min-w-[32px] min-h-[32px] rounded-full border cursor-pointer transition-colors flex items-center justify-center leading-none ${
+              playing
+                ? 'border-[#c9a0b8]/60 text-[#c9a0b8]'
+                : isLight ? 'border-stone-400 text-stone-500 hover:text-stone-800 hover:border-stone-600'
+                : 'border-white/20 text-white/50 hover:text-white hover:border-white/40'}`}
+            title={playing ? '暂停' : '播放'}
+          >
+            {playing ? '⏸' : '♪'}
           </button>
-        )}
-        {selectedCity && (
-          <button onClick={() => onSelect('')}
-            className="text-xs px-3 py-1.5 rounded-full border border-[var(--color-coral-active)]/50
-                       text-[var(--color-coral-active)] hover:bg-[var(--color-coral-active)]/10
-                       cursor-pointer transition-colors font-medium shrink-0">
-            ✕ 取消选择
+          <button onClick={() => onThemeChange(theme === 'dark' ? 'light' : 'dark')}
+            className={`text-xs px-3 py-1.5 rounded-full border cursor-pointer transition-colors ${
+              isLight ? 'border-stone-400 text-stone-500 hover:text-stone-800 hover:border-stone-600'
+                      : 'border-white/20 text-white/50 hover:text-white hover:border-white/40'}`}>
+            {isLight ? '🌙 暗色' : '☀️ 亮色'}
           </button>
-        )}
-        {selectedProvince && (
-          <span className="absolute left-1/2 -translate-x-1/2 text-lg font-medium tracking-wider whitespace-nowrap"
-            style={{ color: isLight ? '#e11d48' : '#fff' }}>
-            {selectedProvince?.replace('省','').replace('市','').replace('自治区','')}
-          </span>
-        )}
-        <div className="flex-1" />
-        <button onClick={() => onThemeChange(theme === 'dark' ? 'light' : 'dark')}
-          className={`shrink-0 text-xs px-3 py-1.5 rounded-full border cursor-pointer transition-colors ${
-            isLight ? 'border-stone-400 text-stone-500 hover:text-stone-800 hover:border-stone-600'
-                    : 'border-white/20 text-white/50 hover:text-white hover:border-white/40'}`}>
-          {isLight ? '🌙 暗色' : '☀️ 亮色'}
-        </button>
+        </div>
       </div>
 
       {/* Stats */}
       <div className="flex flex-col items-center gap-1 mb-2">
         <div className="flex items-center gap-6 text-base font-semibold">
-          <span style={{ color: isLight ? '#e11d48' : '#fff' }}>
-            已激活省份 {activeProvs.size}/{Object.keys(mapData?.provinces || {}).length}
+          <span style={{ color: isLight ? '#444' : 'rgba(255,255,255,0.7)' }}>
+            已激活省份{' '}
+            <span style={{ color: isLight ? '#e11d48' : 'var(--color-coral-active)' }}>{activeProvs.size}</span>
+            /{Object.keys(mapData?.provinces || {}).length}
           </span>
-          <span style={{ color: isLight ? '#e11d48' : '#fff' }}>
-            已激活城市 {activeCities.size}/{mapData?.cities?.length || 370}
+          <span style={{ color: isLight ? '#444' : 'rgba(255,255,255,0.7)' }}>
+            已激活城市{' '}
+            <span style={{ color: isLight ? '#e11d48' : 'var(--color-coral-active)' }}>{activeCities.size}</span>
+            /{mapData?.cities?.length || 370}
           </span>
         </div>
         <span className={isLight ? 'text-stone-500 text-xs' : 'text-white/25 text-xs'}>滚轮缩放 · 拖拽平移 · 双击复位</span>
