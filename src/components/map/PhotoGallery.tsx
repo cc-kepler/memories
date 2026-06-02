@@ -1,4 +1,4 @@
-import { useRef, useState, useMemo, useCallback, useEffect } from 'react'
+import { useRef, useState, useMemo, useEffect } from 'react'
 import type { Photo } from '../../lib/data'
 
 interface PhotoGalleryProps {
