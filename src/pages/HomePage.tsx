@@ -11,7 +11,7 @@ const LETTER_READ_KEY = 'memories_letter_read'
 function loadTheme(): Theme {
   const saved = localStorage.getItem(THEME_KEY)
   if (saved === 'light' || saved === 'dark') return saved
-  return 'dark'
+  return 'light'
 }
 
 function getDaysTogether(): number {

@@ -11,7 +11,7 @@ const THEME_KEY = 'memories_theme'
 function loadTheme(): Theme {
   const saved = localStorage.getItem(THEME_KEY)
   if (saved === 'light' || saved === 'dark') return saved
-  return 'dark'
+  return 'light'
 }
 
 export default function MapPage() {
