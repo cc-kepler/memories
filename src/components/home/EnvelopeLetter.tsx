@@ -1,13 +1,16 @@
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { play } from '../../lib/music'
+import letterText from '/three_years.txt?raw'
 
 interface EnvelopeLetterProps {
-  content: string
   onClose: () => void
 }
 
-export default function EnvelopeLetter({ content, onClose }: EnvelopeLetterProps) {
+// Preload text content so it works regardless of platform SPA routing
+const content = letterText
+
+export default function EnvelopeLetter({ onClose }: EnvelopeLetterProps) {
   const [opened, setOpened] = useState(false)
   const [closing, setClosing] = useState(false)
   const para4Ref = useRef<HTMLParagraphElement>(null)

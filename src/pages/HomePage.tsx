@@ -23,24 +23,17 @@ function getDaysTogether(): number {
 export default function HomePage() {
   const [theme, setTheme] = useState<Theme>(loadTheme)
   const [playing, setPlaying] = useState(isPlaying)
-  const [letterContent, setLetterContent] = useState('')
   const [showLetter, setShowLetter] = useState(false)
   const days = useMemo(() => getDaysTogether(), [])
 
-  // Fetch letter content
-  useEffect(() => {
-    fetch('/three_years.txt').then(r => r.text()).then(setLetterContent).catch(() => {})
-  }, [])
-
   // Auto-show letter whenever coming from opening page
   useEffect(() => {
-    if (!letterContent) return
     if (sessionStorage.getItem('from_opening') === '1') {
       sessionStorage.removeItem('from_opening')
       const t = setTimeout(() => setShowLetter(true), 500)
       return () => clearTimeout(t)
     }
-  }, [letterContent])
+  }, [])
 
   // Music — starts when scrolling to paragraph 4 in the letter
   useEffect(() => {
@@ -112,8 +105,8 @@ export default function HomePage() {
       </div>
 
       {/* Letter envelope overlay */}
-      {showLetter && letterContent && (
-        <EnvelopeLetter content={letterContent} onClose={handleCloseLetter} />
+      {showLetter && (
+        <EnvelopeLetter onClose={handleCloseLetter} />
       )}
     </div>
   )
