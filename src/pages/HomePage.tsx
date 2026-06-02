@@ -1,5 +1,4 @@
 import { useState, useMemo, useEffect, useCallback } from 'react'
-import { useLocation } from 'react-router-dom'
 import EnvelopePanel from '../components/home/EnvelopePanel'
 import GlobePanel from '../components/home/GlobePanel'
 import EnvelopeLetter from '../components/home/EnvelopeLetter'
@@ -22,8 +21,6 @@ function getDaysTogether(): number {
 }
 
 export default function HomePage() {
-  const location = useLocation()
-  const fromOpening = (location.state as any)?.fromOpening
   const [theme, setTheme] = useState<Theme>(loadTheme)
   const [playing, setPlaying] = useState(isPlaying)
   const [letterContent, setLetterContent] = useState('')
@@ -37,10 +34,13 @@ export default function HomePage() {
 
   // Auto-show letter whenever coming from opening page
   useEffect(() => {
-    if (!letterContent || !fromOpening) return
-    const t = setTimeout(() => setShowLetter(true), 500)
-    return () => clearTimeout(t)
-  }, [letterContent, fromOpening])
+    if (!letterContent) return
+    if (sessionStorage.getItem('from_opening') === '1') {
+      sessionStorage.removeItem('from_opening')
+      const t = setTimeout(() => setShowLetter(true), 500)
+      return () => clearTimeout(t)
+    }
+  }, [letterContent])
 
   // Music — starts when scrolling to paragraph 4 in the letter
   useEffect(() => {
