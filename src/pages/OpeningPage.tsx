@@ -30,8 +30,8 @@ export default function OpeningPage() {
 
   const handleEnter = () => {
     if (loading) return
+    sessionStorage.setItem('from_opening', '1')
     if (user) {
-      sessionStorage.setItem('from_opening', '1')
       navigate('/home')
     } else {
       navigate('/login')
